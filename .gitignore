@@ -1,0 +1,49 @@
+# Python bytecode/cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Packaging/build artifacts
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+
+# uv.lock is intentionally NOT ignored — unlike Go's /vendor/ exclusion,
+# lockfiles are checked in for uv so every environment resolves identically.
+
+# Test/type/lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage*
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volume data
+/data/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+/temp/
+
+# AI Tools
+.claude/

@@ -1,0 +1,22 @@
+# syntax=docker/dockerfile:1
+FROM python:3.12-slim AS builder
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+WORKDIR /app
+
+# Workspace-aware sync needs every member's pyproject.toml present (uv
+# resolves the whole workspace graph even to build one package's image), so
+# the build context is the full monorepo, not just services/api/.
+COPY pyproject.toml uv.lock .python-version ./
+COPY libs libs
+COPY services services
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev --package api-service
+
+FROM python:3.12-slim
+RUN useradd --create-home --uid 1000 appuser
+WORKDIR /app
+COPY --from=builder /app /app
+ENV PATH="/app/.venv/bin:$PATH"
+USER appuser
+
+EXPOSE 8080
+CMD ["python", "-m", "api_service.main"]
