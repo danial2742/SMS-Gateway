@@ -7,13 +7,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.config import settings
 from api_service.deps import get_primary_session, get_redis, get_tenant_id
+from api_service.schemas.errors import ErrorEnvelope
 from api_service.schemas.wallet import ChargeRequest, ChargeResponse, WalletResponse
 from api_service.services import idempotency_service, wallet_service
 
 router = APIRouter(prefix="/api/v1", tags=["wallet"])
 
 
-@router.get("/wallet", response_model=WalletResponse)
+@router.get(
+    "/wallet",
+    response_model=WalletResponse,
+    summary="Get wallet balance",
+    description=(
+        "Retrieve the current balance for the authenticated tenant. Used to check spendable "
+        "balance before submitting large batches, and by internal dashboards."
+    ),
+    responses={404: {"model": ErrorEnvelope, "description": "WALLET_NOT_FOUND"}},
+)
 async def get_wallet(
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_primary_session),
@@ -27,7 +37,21 @@ async def get_wallet(
     )
 
 
-@router.post("/wallet/charge", response_model=ChargeResponse, status_code=201)
+@router.post(
+    "/wallet/charge",
+    response_model=ChargeResponse,
+    status_code=201,
+    summary="Top up wallet balance",
+    description=(
+        "Top up a tenant's SMS balance following a successful external payment. Called by an "
+        "internal billing/payment integration, not directly by an end customer's SMS-sending "
+        "client. Requires an `Idempotency-Key` header."
+    ),
+    responses={
+        400: {"model": ErrorEnvelope, "description": "INVALID_JSON | MISSING_IDEMPOTENCY_KEY"},
+        422: {"model": ErrorEnvelope, "description": "INVALID_AMOUNT"},
+    },
+)
 async def charge_wallet(
     body: ChargeRequest,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),

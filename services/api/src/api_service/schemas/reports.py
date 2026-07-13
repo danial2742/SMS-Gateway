@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from gateway_common.domain.enums import Priority, SmsStatus
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ReportItem(BaseModel):
@@ -10,10 +10,12 @@ class ReportItem(BaseModel):
     recipient: str
     status: SmsStatus
     priority: Priority
-    cost: int
+    cost: int = Field(..., description="Credits deducted for this message.")
     created_at: datetime
 
 
 class ReportResponse(BaseModel):
     items: list[ReportItem]
-    next_cursor: str | None = None
+    next_cursor: str | None = Field(
+        default=None, description="Opaque cursor for the next page. Absent or empty signals the last page."
+    )

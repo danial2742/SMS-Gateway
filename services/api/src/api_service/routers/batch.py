@@ -8,12 +8,30 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api_service.config import settings
 from api_service.deps import get_primary_session, get_read_session, get_redis, get_tenant_id
 from api_service.schemas.batch import BatchCreateRequest, BatchCreateResponse, BatchDetailResponse
+from api_service.schemas.errors import ErrorEnvelope
 from api_service.services import idempotency_service, reporting, submission
 
 router = APIRouter(prefix="/api/v1", tags=["batch"])
 
 
-@router.post("/sms/batch", response_model=BatchCreateResponse, status_code=202)
+@router.post(
+    "/sms/batch",
+    response_model=BatchCreateResponse,
+    status_code=202,
+    summary="Submit a batch of SMS",
+    description=(
+        "Send identical content to many recipients as one atomic operation. Requires an "
+        "`Idempotency-Key` header. Any invalid recipient rejects the entire batch — no partial "
+        "acceptance."
+    ),
+    responses={
+        402: {"model": ErrorEnvelope, "description": "INSUFFICIENT_BALANCE (for the entire batch)"},
+        422: {
+            "model": ErrorEnvelope,
+            "description": "EMPTY_RECIPIENT_LIST | BATCH_TOO_LARGE | INVALID_RECIPIENT",
+        },
+    },
+)
 async def create_batch(
     body: BatchCreateRequest,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
@@ -56,7 +74,16 @@ async def create_batch(
     return BatchCreateResponse(**response_snapshot)
 
 
-@router.get("/batches/{batch_id}", response_model=BatchDetailResponse)
+@router.get(
+    "/batches/{batch_id}",
+    response_model=BatchDetailResponse,
+    summary="Get batch progress",
+    description=(
+        "Poll aggregate progress of a batch send. `sent_count`/`failed_count` are derived from a "
+        "periodic aggregate over child SMS rows — eventually consistent with in-flight sends."
+    ),
+    responses={404: {"model": ErrorEnvelope, "description": "BATCH_NOT_FOUND"}},
+)
 async def get_batch(
     batch_id: uuid.UUID,
     tenant_id: uuid.UUID = Depends(get_tenant_id),

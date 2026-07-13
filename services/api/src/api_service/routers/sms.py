@@ -7,13 +7,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_service.config import settings
 from api_service.deps import get_primary_session, get_read_session, get_redis, get_tenant_id
+from api_service.schemas.errors import ErrorEnvelope
 from api_service.schemas.sms import SmsCreateRequest, SmsCreateResponse, SmsDetailResponse
 from api_service.services import idempotency_service, reporting, submission
 
 router = APIRouter(prefix="/api/v1", tags=["sms"])
 
 
-@router.post("/sms", response_model=SmsCreateResponse, status_code=202)
+@router.post(
+    "/sms",
+    response_model=SmsCreateResponse,
+    status_code=202,
+    summary="Submit a single SMS",
+    description=(
+        "Atomically deducts balance, persists the message, and durably queues it for async "
+        "dispatch. Requires an `Idempotency-Key` header. Returns 202 (accepted for dispatch, "
+        "not delivery) — poll `GET /sms/{sms_id}` for status."
+    ),
+    responses={
+        400: {"model": ErrorEnvelope, "description": "MISSING_IDEMPOTENCY_KEY"},
+        402: {"model": ErrorEnvelope, "description": "INSUFFICIENT_BALANCE"},
+        409: {"model": ErrorEnvelope, "description": "IDEMPOTENCY_KEY_IN_FLIGHT"},
+        422: {
+            "model": ErrorEnvelope,
+            "description": "IDEMPOTENCY_KEY_REUSED | INVALID_RECIPIENT | MESSAGE_TOO_LONG",
+        },
+    },
+)
 async def create_sms(
     body: SmsCreateRequest,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
@@ -56,7 +76,13 @@ async def create_sms(
     return SmsCreateResponse(**response_snapshot)
 
 
-@router.get("/sms/{sms_id}", response_model=SmsDetailResponse)
+@router.get(
+    "/sms/{sms_id}",
+    response_model=SmsDetailResponse,
+    summary="Get SMS status",
+    description="Poll the current status of a single message — either a standalone send or one child of a batch.",
+    responses={404: {"model": ErrorEnvelope, "description": "SMS_NOT_FOUND"}},
+)
 async def get_sms(
     sms_id: uuid.UUID,
     tenant_id: uuid.UUID = Depends(get_tenant_id),

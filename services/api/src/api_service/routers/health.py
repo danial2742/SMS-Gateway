@@ -4,14 +4,25 @@ from gateway_common.health import ping_kafka, ping_postgres, ping_redis, readine
 router = APIRouter(tags=["health"])
 
 
-@router.get("/healthz")
+@router.get(
+    "/healthz",
+    summary="Liveness probe",
+    description="Is this process's own event loop responsive. No dependency checks are performed by design.",
+)
 async def healthz() -> dict:
     # Deliberately shallow — no dependency checks (deployment.md Liveness):
     # only answers "is this process's own event loop responsive."
     return {"status": "ok"}
 
 
-@router.get("/readyz")
+@router.get(
+    "/readyz",
+    summary="Readiness probe",
+    description=(
+        "Can this pod currently serve traffic. Checks Postgres, Redis, and Kafka reachability. "
+        "Returns 503 if any required dependency check fails."
+    ),
+)
 async def readyz(request: Request, response: Response) -> dict:
     state = request.app.state
     checks = {

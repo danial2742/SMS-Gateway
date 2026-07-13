@@ -2,19 +2,21 @@ import uuid
 from datetime import datetime
 
 from gateway_common.domain.errors import InvalidAmountError
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class WalletResponse(BaseModel):
     tenant_id: uuid.UUID
-    balance: int
+    balance: int = Field(..., description="Current spendable balance, in credits.")
     currency: str
     updated_at: datetime
 
 
 class ChargeRequest(BaseModel):
-    amount: int | float
-    method_ref: str | None = None
+    amount: int | float = Field(..., description="Credits to add; must be a positive integer.", examples=[100000])
+    method_ref: str | None = Field(
+        default=None, description="External payment/PSP reference, stored for reconciliation.", examples=["psp-transaction-id"]
+    )
 
     @field_validator("amount")
     @classmethod
@@ -29,4 +31,4 @@ class ChargeRequest(BaseModel):
 
 class ChargeResponse(BaseModel):
     topup_id: uuid.UUID
-    balance_after: int
+    balance_after: int = Field(..., description="Tenant wallet balance after this top-up, in credits.")

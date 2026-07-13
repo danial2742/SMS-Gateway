@@ -68,10 +68,20 @@ cp .env.example .env
 docker compose up --build
 ```
 
+`.env.example` defaults `SEED_DEV_DATA=true`, which seeds the dev tenant + wallet (migration 0002). If you unset it, wallet/sms calls below 404 with `WALLET_NOT_FOUND`.
+
 Dev tenant (from seed migration): X-Tenant-ID: 11111111-1111-1111-1111-111111111111 with 100,000 credits.
 
-Example:
+#### Test flow
 
+1. Check wallet balance:
+```
+curl http://localhost:8080/api/v1/wallet \
+  -H "X-Tenant-ID: 11111111-1111-1111-1111-111111111111"
+```
+Expect `{"tenant_id":"11111111-...","balance":100000,...}`. A `WALLET_NOT_FOUND` error here means the stack was started without `SEED_DEV_DATA=true` — rerun compose up with it set.
+
+2. Send an SMS:
 ```
 curl -X POST http://localhost:8080/api/v1/sms \
   -H "X-Tenant-ID: 11111111-1111-1111-1111-111111111111" \
@@ -79,6 +89,16 @@ curl -X POST http://localhost:8080/api/v1/sms \
   -H "Content-Type: application/json" \
   -d '{"recipient":"+15551234567","message":"Hello","priority":"EXPRESS"}'
 ```
+
+3. Re-check wallet balance — should be debited by the send.
+
+#### API docs (Swagger / ReDoc)
+
+With the API service running, interactive OpenAPI docs are served at:
+- `http://localhost:8080/docs` — Swagger UI
+- `http://localhost:8080/redoc` — ReDoc
+
+Generated from the FastAPI route/schema definitions in `services/api/src/api_service/`; see [docs/api.md](docs/api.md) for the same reference in prose form.
 
 #### Key files
 - Schema: migrations/versions/0001_init_schema.py (docs/database.md is the DDL source of truth this translates)

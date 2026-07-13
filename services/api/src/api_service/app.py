@@ -34,8 +34,40 @@ async def lifespan(app: FastAPI):
         yield
 
 
+API_DESCRIPTION = """
+REST API for submitting and tracking SMS messages, batches, and tenant wallet balance.
+
+All endpoints below `/api/v1` require an `X-Tenant-ID` header. Mutating `POST` endpoints
+(`/sms`, `/sms/batch`, `/wallet/charge`) additionally require an `Idempotency-Key` header
+(UUID recommended); retrying the same key with the same body replays the original result,
+retrying with a different body returns `422 IDEMPOTENCY_KEY_REUSED`.
+
+Errors use a consistent JSON envelope:
+
+```json
+{"error": {"code": "INSUFFICIENT_BALANCE", "message": "...", "request_id": "9c3f2b7e-..."}}
+```
+
+`request_id` matches the `request_id` emitted in structured logs for that request.
+"""
+
+OPENAPI_TAGS = [
+    {"name": "health", "description": "Unauthenticated liveness/readiness probes."},
+    {"name": "wallet", "description": "Tenant balance and top-ups."},
+    {"name": "sms", "description": "Single-message submission and status."},
+    {"name": "batch", "description": "Multi-recipient batch submission and progress."},
+    {"name": "reports", "description": "Paginated historical SMS queries."},
+]
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="SMS Gateway API", lifespan=lifespan)
+    app = FastAPI(
+        title="SMS Gateway API",
+        version="0.1.0",
+        description=API_DESCRIPTION,
+        openapi_tags=OPENAPI_TAGS,
+        lifespan=lifespan,
+    )
 
     # Created eagerly (redis.asyncio connects lazily on first command) so the
     # rate-limit middleware — instantiated at app-build time, before lifespan
